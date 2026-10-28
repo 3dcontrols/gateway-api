@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>게이트웨이 ↔ cerafy 연동 명세</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+<style>
+:root {
+  --bg: #ffffff;
+  --ink: #18212b;
+  --muted: #5a6573;
+  --line: #dde2e8;
+  --panel: #f4f6f8;
+  --accent: #1d5fa8;
+  --warn: #b2580c;
+  --warn-bg: #fdf1e6;
+  --font-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, "D2Coding", monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+}
+a { color: var(--accent); }
+a:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.top { border-bottom: 1px solid var(--line); }
+.top-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-top: 24px;
+  padding-bottom: 12px;
+}
+.title { min-width: 0; }
+.eyebrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  background: var(--warn-bg);
+  font-size: 12px;
+  font-weight: 500;
+}
+h1 { margin: 8px 0 0; font-size: clamp(22px, 3.4vw, 30px); line-height: 1.3; font-weight: 700; text-wrap: balance; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; min-width: 0; max-width: 100%; }
+.ver { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); min-width: 0; max-width: 100%; }
+.ver select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 0;
+  max-width: calc(100vw - 72px);
+}
+.downloads { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; }
+.tabs a {
+  padding: 10px 14px;
+  text-decoration: none;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.tabs a:hover { color: var(--ink); }
+.tabs a[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.banner {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 14px;
+}
+.banner a { color: inherit; font-weight: 700; }
+main { padding-top: 8px; padding-bottom: 48px; }
+.foot { padding-top: 16px; padding-bottom: 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.loading { color: var(--muted); padding: 24px 0; }
+
+.doc { min-width: 0; max-width: 880px; padding-top: 8px; }
+.doc h2 { font-size: 20px; margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.doc p, .doc td { overflow-wrap: anywhere; }
+.doc code { font-family: var(--font-mono); font-size: 13px; }
+.table-wrap { overflow-x: auto; margin: 12px 0; }
+.doc table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.doc th, .doc td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: middle; }
+.doc th { font-weight: 700; white-space: nowrap; }
+.doc .nowrap { white-space: nowrap; }
+.doc .note-cell { min-width: 16em; }
+
+#swagger-ui { min-width: 0; }
+.swagger-ui { font-family: var(--font-body); color: var(--ink); }
+.swagger-ui .wrapper { padding: 0; max-width: none; }
+.swagger-ui .info { margin: 24px 0 12px; }
+.swagger-ui .info hgroup.main { display: none; }
+.swagger-ui .auth-wrapper, .swagger-ui .authorization__btn { display: none; }
+.swagger-ui .scheme-container { display: none; }
+.swagger-ui .opblock-tag, .swagger-ui .opblock .opblock-summary-description { font-family: var(--font-body); }
+.swagger-ui .model-box, .swagger-ui .highlight-code, .swagger-ui .microlight { max-width: 100%; overflow-x: auto; }
+.swagger-ui .markdown p, .swagger-ui .markdown li, .swagger-ui .markdown th, .swagger-ui .markdown td,
+.swagger-ui .renderedMarkdown p, .swagger-ui .renderedMarkdown li, .swagger-ui .renderedMarkdown th, .swagger-ui .renderedMarkdown td {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.swagger-ui table.headers th { font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--ink); }
+.swagger-ui table.headers td { font-family: var(--font-mono); font-size: 13px; font-weight: 400; color: var(--ink); vertical-align: middle; }
+.swagger-ui .markdown code, .swagger-ui .renderedMarkdown code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+  background: none;
+  border-radius: 0;
+  padding: 0;
+}
+.swagger-ui .markdown table, .swagger-ui .renderedMarkdown table { border-collapse: collapse; margin: 8px 0; padding: 0; }
+.swagger-ui .markdown table thead tr th, .swagger-ui .renderedMarkdown table thead tr th,
+.swagger-ui .markdown table tbody tr td, .swagger-ui .renderedMarkdown table tbody tr td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  min-width: 0;
+  text-align: left;
+  vertical-align: middle;
+  background: none;
+}
+.swagger-ui .markdown table thead tr th, .swagger-ui .renderedMarkdown table thead tr th { font-weight: 700; }
+.swagger-ui .markdown table tr > :first-child, .swagger-ui .renderedMarkdown table tr > :first-child { white-space: nowrap; }
+.swagger-ui .markdown, .swagger-ui .renderedMarkdown { overflow-x: auto; }
+.swagger-ui .response-col_links { display: none; }
+.swagger-ui .responses-inner, .swagger-ui .table-container { overflow-x: auto; }
+@media (prefers-reduced-motion: reduce) { .swagger-ui * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="title">
+      <div class="eyebrow">
+        <span class="badge">3DCONTROLS</span>
+      </div>
+      <h1>게이트웨이 ↔ cerafy 연동 명세</h1>
+    </div>
+    <div class="controls">
+      <label class="ver"><span>버전</span><select id="ver" aria-label="명세 버전 고르기"></select></label>
+      <div class="downloads">
+        <a id="dl-api" href="#" download>OpenAPI 파일 받기</a>
+      </div>
+    </div>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="보기">
+    <a role="tab" href="#api" data-tab="api" aria-selected="true">API</a>
+    <a role="tab" href="#history" data-tab="history" aria-selected="false">변경 이력</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <p id="old-banner" class="banner" hidden></p>
+  <p id="error" class="banner" hidden></p>
+</div>
+
+<main class="wrap">
+  <section id="tab-api" role="tabpanel" aria-label="API">
+    <div id="swagger-ui"><p class="loading">불러오는 중…</p></div>
+  </section>
+  <section id="tab-history" role="tabpanel" aria-label="변경 이력" hidden>
+    <article id="history-doc" class="doc"></article>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  3DCONTROLS · 게이트웨이 ↔ cerafy 연동 명세
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+<script>
+(function () {
+  'use strict';
+  var TABS = ['api', 'history'];
+  var versions = [];
+  var current = null;
+  var drawnFor = {};
+  var $ = function (id) { return document.getElementById(id); };
+
+  function latest() { return versions[0]; }
+  function folder(v) { return 'v' + v.version + '/'; }
+  function byVersionDesc(a, b) {
+    var x = a.version.split('.').map(Number), y = b.version.split('.').map(Number);
+    return (y[0] - x[0]) || (y[1] - x[1]);
+  }
+  function fetchJson(url) {
+    return fetch(url, { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error(url + ' (' + r.status + ')');
+      return r.json();
+    });
+  }
+  function showError(message) { var e = $('error'); e.textContent = message; e.hidden = false; }
+  function currentTab() {
+    var t = location.hash.replace('#', '');
+    return TABS.indexOf(t) >= 0 ? t : 'api';
+  }
+  function inlineCode(text) {
+    var escaped = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  function render() {
+    var want = new URLSearchParams(location.search).get('v');
+    var found = versions.filter(function (v) { return v.version === want; })[0];
+    if (want && !found) showError('v' + want + ' 버전을 찾을 수 없어 최신 버전을 보여 드립니다.');
+    var next = found || latest();
+    if (next !== current) { current = next; drawnFor = {}; updateHeader(); }
+    showTab(currentTab());
+  }
+
+  function updateHeader() {
+    var v = current.version;
+    $('ver').value = v;
+    document.title = '게이트웨이 ↔ cerafy 연동 명세 v' + v;
+    var api = $('dl-api');
+    api.href = folder(current) + 'openapi.json';
+    api.setAttribute('download', 'cloud-api-v' + v + '.openapi.json');
+
+    var banner = $('old-banner');
+    banner.textContent = '';
+    if (current === latest()) { banner.hidden = true; return; }
+    var link = document.createElement('a');
+    link.href = location.pathname;
+    link.textContent = 'v' + latest().version;
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      history.pushState(null, '', location.pathname + location.hash);
+      render();
+    });
+    banner.append('이전 버전 v' + v + '을 보고 있습니다. 최신 버전은 ', link, '입니다.');
+    banner.hidden = false;
+  }
+
+  function showTab(tab) {
+    TABS.forEach(function (t) {
+      $('tab-' + t).hidden = t !== tab;
+      document.querySelector('[data-tab="' + t + '"]').setAttribute('aria-selected', t === tab ? 'true' : 'false');
+    });
+    if (drawnFor[tab] === current.version) return;
+    drawnFor[tab] = current.version;
+    if (tab === 'api') drawApi();
+    else drawHistory();
+  }
+
+  function drawApi() {
+    var box = $('swagger-ui');
+    box.innerHTML = '';
+    if (typeof window.SwaggerUIBundle !== 'function') {
+      box.textContent = 'Swagger 화면을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로 고쳐 주세요. OpenAPI 파일은 위의 받기 링크로 받을 수 있습니다.';
+      return;
+    }
+    window.SwaggerUIBundle({
+      url: folder(current) + 'openapi.json',
+      dom_id: '#swagger-ui',
+      deepLinking: false,
+      supportedSubmitMethods: [],
+      tryItOutEnabled: false,
+      validatorUrl: null,
+      docExpansion: 'list',
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 2,
+      onFailure: function () { box.textContent = '이 버전의 OpenAPI 파일을 불러오지 못했습니다.'; }
+    });
+  }
+
+  function drawHistory() {
+    var box = $('history-doc');
+    box.innerHTML = '<p class="loading">불러오는 중…</p>';
+    fetchJson(folder(latest()) + 'openapi.json').then(function (api) {
+      var notes = {};
+      ((api.info && api.info['x-changelog']) || []).forEach(function (c) { if (c && c.version) notes[String(c.version)] = c.changes || ''; });
+      box.innerHTML = '<h2>버전 목록과 변경 이력</h2><p>한 번 올린 버전은 수정하지 않고, 변경 사항은 새 버전으로 올립니다. 버전 번호를 누르면 해당 버전을 볼 수 있습니다.</p>';
+      var table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>버전</th><th>날짜</th><th>변경 내용</th></tr></thead><tbody></tbody>';
+      versions.forEach(function (v, i) {
+        var tr = table.tBodies[0].insertRow();
+        var cell = tr.insertCell();
+        cell.className = 'nowrap';
+        var a = document.createElement('a');
+        a.href = '?v=' + encodeURIComponent(v.version) + '#api';
+        a.textContent = 'v' + v.version + (i === 0 ? ' (최신)' : '');
+        cell.appendChild(a);
+        var date = tr.insertCell();
+        date.className = 'nowrap';
+        date.textContent = v.date;
+        var note = tr.insertCell();
+        note.className = 'note-cell';
+        note.innerHTML = inlineCode(notes[v.version] || '');
+      });
+      var wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
+      wrap.appendChild(table);
+      box.appendChild(wrap);
+    }).catch(function (err) {
+      box.textContent = '변경 이력을 불러오지 못했습니다: ' + err.message;
+    });
+  }
+
+  fetchJson('versions.json').then(function (list) {
+    versions = (list || []).filter(function (v) { return v && /^\d+\.\d+$/.test(v.version); }).sort(byVersionDesc);
+    if (!versions.length) throw new Error('버전 목록이 비어 있습니다');
+    var select = $('ver');
+    versions.forEach(function (v, i) {
+      var o = document.createElement('option');
+      o.value = v.version;
+      o.textContent = 'v' + v.version + ' · ' + v.date + (i === 0 ? ' (최신)' : '');
+      select.appendChild(o);
+    });
+    select.addEventListener('change', function () {
+      $('error').hidden = true;
+      history.pushState(null, '', '?v=' + encodeURIComponent(select.value) + '#' + currentTab());
+      render();
+    });
+    window.addEventListener('hashchange', function () { showTab(currentTab()); });
+    window.addEventListener('popstate', render);
+    render();
+  }).catch(function (err) {
+    showError('버전 목록을 불러오지 못했습니다: ' + err.message);
+    $('swagger-ui').textContent = '';
+  });
+})();
+</script>
+</body>
+</html>

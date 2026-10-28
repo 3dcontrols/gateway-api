@@ -1,0 +1,320 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "게이트웨이 ↔ cerafy 연동 API",
+    "version": "1.0",
+    "description": "게이트웨이 ↔ cerafy API입니다. 인증과 응답 형식은 `GET /gateway/ping`과 같습니다.\n\n**통신 방향:** 모든 요청은 게이트웨이가 cerafy 서버로 보냅니다. 고객 현장에는 들어오는 연결을 열 수 없어서, cerafy에서 게이트웨이로 보낼 것은 상태 보고의 응답에 실어 주세요.\n\n이번에 필요한 개발은 아래와 같습니다.\n\n- **상태 보고:** `POST /gateway/status`. 게이트웨이가 2초마다 장비 상태를 보냅니다.\n- **파일 전달:** 프린터 한 대에 파일 하나를 보내는 요청을 **작업**(job)이라고 합니다. cerafy에서 작업을 만들고 `job_id`를 붙여 주세요.\n\n| 순서 | 하는 쪽 | 내용 |\n| --- | --- | --- |\n| 1 | cerafy | 작업을 만들어 다음 상태 보고 응답의 `jobs`에 넣음 |\n| 2 | 게이트웨이 | 새 작업을 받으면 `Received` 보고. cerafy는 `Received`를 받은 뒤부터 그 작업을 `jobs`에 넣지 않음 |\n| 3 | 게이트웨이 | `download_url`에서 내려받고(`Downloading`) 파일을 확인(`Checking`) |\n| 4 | 게이트웨이 | 프린터 PC에 저장하고 `Delivered` 보고 (실패하면 `Failed` + `error_code`) |\n\n표의 단계별 보고(`Received` ~ `Delivered`)는 `POST /gateway/jobs/{job_id}/events`로 보냅니다.",
+    "x-changelog": [
+      { "version": "1.0", "date": "2026-10-27", "changes": "최초 작성: 장비 상태 보고(`POST /gateway/status`), 파일 전달(상태 보고 응답의 `jobs`, 파일 내려받기, `POST /gateway/jobs/{job_id}/events`)" }
+    ]
+  },
+  "tags": [
+    { "name": "상태 보고", "description": "게이트웨이가 2초마다 장비 상태를 보냅니다." },
+    { "name": "파일 전달", "description": "cerafy에서 슬라이싱한 파일(zip)을 게이트웨이가 받아 지정한 프린터로 전달합니다." }
+  ],
+  "security": [ { "APIKeyHeader": [] } ],
+  "paths": {
+    "/gateway/status": {
+      "post": {
+        "tags": [ "상태 보고" ],
+        "summary": "장비 상태 받기",
+        "description": "게이트웨이가 2초마다 **장비 전체의 현재 상태**를 보냅니다. 장비의 연결이나 상태가 바뀌면 바로 보냅니다. 10초 넘게 요청이 없으면 그 게이트웨이를 연결 끊김으로 표시해 주세요.\n\n| 장비 | type | data |\n| --- | --- | --- |\n| 프린터 | `Printer` | `progress`, `printing_time`, `remaining_time`, `final_time` (출력 중일 때) |\n| 소결로 | `Furnace` | `running`, `screen_code`, `current_temp`, `active_schedule`(운전 중일 때) |\n| 연마기 | `Polisher` | 없음 (추후 추가) |\n\n응답하지 않는 장비는 `connected: false`, `status: Disconnected`, `data: {}`로 보냅니다. 필드는 늘어날 수 있으니 모르는 필드는 무시해 주세요.\n\n보낼 파일이 있으면 응답의 `jobs`에 넣어 주세요.",
+        "operationId": "gateway_status",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StatusReport" },
+              "example": {
+                "gateway_version": "0.3.0",
+                "sent_at": "2026-10-27T09:05:03+09:00",
+                "devices": [
+                  {
+                    "device_id": "TD0623KRSCEU-01", "type": "Printer", "name": "프린터 EU-01",
+                    "connected": true, "status": "Working", "updated_at": "2026-10-27T09:05:02+09:00",
+                    "data": { "progress": 42, "printing_time": 125, "remaining_time": 48, "final_time": 1530 },
+                    "last_error": null
+                  },
+                  {
+                    "device_id": "furnace-1", "type": "Furnace", "name": "소결로 1",
+                    "connected": true, "status": "Working", "updated_at": "2026-10-27T09:05:01+09:00",
+                    "data": { "running": 1, "screen_code": 0, "current_temp": 850, "active_schedule": 5 },
+                    "last_error": null
+                  },
+                  {
+                    "device_id": "polisher-1", "type": "Polisher", "name": "연마기 1",
+                    "connected": false, "status": "Disconnected", "updated_at": "2026-10-27T09:04:58+09:00",
+                    "data": {},
+                    "last_error": "SocketException: 대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "정상적으로 받았을 때.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponse_StatusResult" },
+                "examples": {
+                  "보낼 작업 없음": {
+                    "value": { "success": true, "data": { "server_time": "2026-10-27T00:05:03.123456Z", "jobs": [] }, "message": null }
+                  },
+                  "보낼 작업 있음": {
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "server_time": "2026-10-27T00:05:03.123456Z",
+                        "jobs": [
+                          {
+                            "job_id": "DLV000101",
+                            "device_id": "TD0623KRSCKR-12",
+                            "file_name": "CF-ORD000123-JOB000045-SLC000067-2610141530_50um.zip",
+                            "download_url": "https://cerafy.uttu.dev/files/DLV000101",
+                            "size": 52428800,
+                            "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+                            "created_at": "2026-10-27T09:00:00+09:00"
+                          }
+                        ]
+                      },
+                      "message": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/gateway/jobs/{job_id}/events": {
+      "post": {
+        "tags": [ "파일 전달" ],
+        "summary": "작업 진행 보고 받기",
+        "description": "작업 단계가 바뀔 때마다 게이트웨이가 보냅니다 (순서는 맨 위 소개의 표). 실패하면 그 단계에서 `Failed`와 `error_code`를 보냅니다.\n\n**요청 사항**\n\n1. `job_id`는 전달 요청마다 새로 만들어 주세요. 같은 작업 ID는 한 번만 처리하므로, 같은 파일을 다시 보낼 때도 새 ID가 필요합니다.\n2. `download_url`은 zip 파일을 그대로 내려주세요.\n3. 파일 전달 시험은 테스트 프린터 `TD0623KRSCKR-12`로만 보내 주세요 (작업의 `device_id`).\n\n**zip 규칙** (맞지 않으면 `Failed` / `ZIP_RULE`)\n\n1. `preview.png`를 뺀 이미지(jpg·gif·bmp·png)가 1장 이상\n2. 첫 이미지의 가로 크기 = 받을 프린터의 DLP 해상도 (1920, 3840, 2712)\n\n**참고**\n\n- 프린터마다 한 번에 하나씩, 받은 순서대로 전달합니다.\n- 파일을 전달해도 출력은 시작되지 않습니다.\n- 프린터에 같은 이름의 파일이 있으면 파일명 앞에 받은 시각을 붙여 저장합니다 (예: `153012_파일명.zip`).\n\n| error_code | 이유 |\n| --- | --- |\n| `INVALID_JOB` | 작업 정보 형식 오류 |\n| `UNKNOWN_DEVICE` | `device_id`가 이 게이트웨이의 프린터가 아님 |\n| `DOWNLOAD_FAILED` | 파일을 내려받지 못함 |\n| `SIZE_MISMATCH` | 크기가 `size`와 다름 |\n| `HASH_MISMATCH` | SHA-256이 `sha256`과 다름 |\n| `ZIP_INVALID` | zip이 아니거나 깨짐 |\n| `ZIP_RULE` | zip 규칙에 맞지 않음 |\n| `PRINTER_DISCONNECTED` | 프린터 응답 없음 |\n| `UPLOAD_FAILED` | 프린터 저장 실패 (보내는 도중 게이트웨이가 다시 시작된 경우 포함) |",
+        "operationId": "gateway_job_event",
+        "parameters": [
+          { "name": "job_id", "in": "path", "required": true, "description": "작업 ID (상태 보고 응답의 `job_id`)", "schema": { "type": "string" }, "example": "DLV000101" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JobEvent" },
+              "examples": {
+                "전달 완료": {
+                  "value": { "state": "Delivered", "time": "2026-10-27T09:06:40+09:00", "error_code": null, "message": null }
+                },
+                "실패": {
+                  "value": { "state": "Failed", "time": "2026-10-27T09:06:12+09:00", "error_code": "HASH_MISMATCH", "message": "SHA-256이 다름" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "정상적으로 받았을 때. 본문 없는 `204`도 됩니다.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponse_Null" },
+                "example": { "success": true, "data": null, "message": null }
+              }
+            }
+          },
+          "204": { "description": "정상적으로 받았을 때 (본문 없음)." },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "모르는 작업일 때. 게이트웨이는 그 작업을 멈춥니다.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "success": false, "message": "작업을 찾을 수 없습니다", "errors": [] }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Gateway-Key",
+        "description": "게이트웨이 키 (어드민 › 게이트웨이에서 발급, 게이트웨이마다 하나)"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "요청 형식이 맞지 않을 때.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+      },
+      "Unauthorized": {
+        "description": "키가 없거나 틀렸을 때 (어드민에서 중지한 게이트웨이 포함).",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" },
+            "example": { "success": false, "message": "게이트웨이 키가 없거나 올바르지 않습니다", "errors": [] }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "요청이 많을 때 (같은 키 분당 60번 초과). `Retry-After`(초)를 주시면 그만큼 기다렸다가 다시 보냅니다. 게이트웨이는 평소 분당 30~35번 보냅니다.",
+        "headers": {
+          "Retry-After": { "description": "다시 보내기까지 기다릴 시간(초)", "schema": { "type": "integer" } }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" },
+            "example": { "success": false, "message": "요청이 너무 많습니다. 잠시 뒤 다시 시도해 주세요", "errors": [] }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "title": "실패 응답",
+        "required": [ "success", "message" ],
+        "properties": {
+          "success": { "type": "boolean", "const": false },
+          "message": { "type": "string", "description": "실패 이유" },
+          "errors": { "type": "array", "items": {} }
+        }
+      },
+      "StatusReport": {
+        "type": "object",
+        "title": "상태 보고",
+        "required": [ "gateway_version", "sent_at", "devices" ],
+        "properties": {
+          "gateway_version": { "type": "string", "description": "게이트웨이 프로그램 버전", "example": "0.3.0" },
+          "sent_at": { "type": "string", "format": "date-time", "description": "보낸 시각 (ISO 8601, 시간대 포함)" },
+          "devices": { "type": "array", "description": "이 게이트웨이에 연결된 장비 전체", "items": { "$ref": "#/components/schemas/DeviceStatus" } }
+        }
+      },
+      "DeviceStatus": {
+        "type": "object",
+        "title": "장비 상태",
+        "required": [ "device_id", "type", "name", "connected", "status", "updated_at", "data" ],
+        "properties": {
+          "device_id": { "type": "string", "description": "장비 ID. 프린터는 장비 시리얼이라 모든 현장에서 유일합니다. 관리 사이트의 프린터와 이 값으로 연결해 주세요. 소결로·연마기 ID는 게이트웨이 안에서만 유일하니 게이트웨이와 함께 구분해 주세요.","example": "TD0623KRSCEU-01" },
+          "type": { "type": "string", "enum": [ "Printer", "Furnace", "Polisher" ], "description": "장비 종류" },
+          "name": { "type": "string", "description": "현장에서 붙인 장비 이름" },
+          "connected": { "type": "boolean", "description": "장비 응답 여부" },
+          "status": {
+            "type": "string",
+            "enum": [ "Idle", "Working", "Paused", "Done", "Error", "Disconnected" ],
+            "description": "Idle 대기, Working 작업 중(프린터는 일시정지 포함), Done 작업 완료, Disconnected 응답 없음. Paused·Error는 추후 추가 예정 (지금은 보내지 않음)"
+          },
+          "updated_at": { "type": "string", "format": "date-time", "description": "마지막으로 장비 상태를 확인한 시각" },
+          "data": {
+            "description": "장비별 값. 응답이 없는 장비는 {}",
+            "anyOf": [
+              { "$ref": "#/components/schemas/PrinterData" },
+              { "$ref": "#/components/schemas/FurnaceData" },
+              { "$ref": "#/components/schemas/PolisherData" }
+            ]
+          },
+          "last_error": { "type": [ "string", "null" ], "description": "응답이 없는 이유 (참고용 문구). 정상이면 null" }
+        }
+      },
+      "PrinterData": {
+        "type": "object",
+        "title": "프린터 data",
+        "description": "출력 중(Working)일 때만 보냅니다. 시간 값은 HHMM 정수 (예: 125 = 1시간 25분)",
+        "properties": {
+          "progress": { "type": "integer", "minimum": 0, "maximum": 100, "description": "진행률 (0~100%)" },
+          "printing_time": { "type": "integer", "description": "출력 경과 시간 (HHMM)" },
+          "remaining_time": { "type": "integer", "description": "남은 예상 시간 (HHMM)" },
+          "final_time": { "type": "integer", "description": "완료 예상 시각 (HHMM, 24시간제)" }
+        }
+      },
+      "FurnaceData": {
+        "type": "object",
+        "title": "소결로 data",
+        "properties": {
+          "running": { "type": "integer", "enum": [ 0, 1 ], "description": "1 운전 중, 0 정지" },
+          "screen_code": { "type": "integer", "description": "장비 화면 번호 (0 운전, 2 설정, 3 온도, 6 대기 등)" },
+          "current_temp": { "type": "integer", "description": "현재 온도 (℃)" },
+          "active_schedule": { "type": "integer", "description": "운전 중인 스케줄 번호 (운전 중일 때만)" }
+        }
+      },
+      "PolisherData": {
+        "type": "object",
+        "title": "연마기 data",
+        "description": "지금은 항상 {} (장비 값은 추후 추가)",
+        "properties": {}
+      },
+      "StatusResult": {
+        "type": "object",
+        "title": "상태 보고 결과",
+        "properties": {
+          "server_time": { "type": "string", "format": "date-time", "description": "서버 시각 (선택, 게이트웨이 시계 확인용)" },
+          "jobs": {
+            "type": "array",
+            "description": "이 게이트웨이로 보낼 작업 중 아직 Received 보고가 오지 않은 것. 없으면 빈 목록 또는 생략",
+            "items": { "$ref": "#/components/schemas/Job" }
+          }
+        }
+      },
+      "ApiResponse_StatusResult": {
+        "type": "object",
+        "title": "ApiResponse[StatusResult]",
+        "required": [ "success" ],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "data": { "anyOf": [ { "$ref": "#/components/schemas/StatusResult" }, { "type": "null" } ] },
+          "message": { "type": [ "string", "null" ] }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "title": "파일 전달 작업",
+        "required": [ "job_id", "device_id", "file_name", "download_url", "size", "sha256" ],
+        "properties": {
+          "job_id": { "type": "string", "description": "전달 요청 ID. 요청마다 새로 만듦 (같은 파일을 다시 보낼 때도 새 ID)" },
+          "device_id": { "type": "string", "description": "받을 프린터 (상태 보고의 device_id)" },
+          "file_name": { "type": "string", "description": "프린터에 저장할 파일명 (.zip, `\\ / : * ? \" < > |` 제외)" },
+          "download_url": { "type": "string", "format": "uri", "description": "파일을 내려받을 https 주소 (등록 뒤 최소 30분 유효)" },
+          "size": { "type": "integer", "minimum": 1, "description": "파일 크기 (바이트)" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "파일의 SHA-256 (16진수 소문자 64자)" },
+          "created_at": { "type": "string", "format": "date-time", "description": "작업 등록 시각 (선택)" }
+        }
+      },
+      "JobEvent": {
+        "type": "object",
+        "title": "작업 진행 보고",
+        "required": [ "state", "time" ],
+        "properties": {
+          "state": { "type": "string", "enum": [ "Received", "Downloading", "Checking", "Delivered", "Failed" ], "description": "작업 단계" },
+          "time": { "type": "string", "format": "date-time", "description": "그 단계가 된 시각" },
+          "error_code": {
+            "type": [ "string", "null" ],
+            "enum": [ "INVALID_JOB", "UNKNOWN_DEVICE", "DOWNLOAD_FAILED", "SIZE_MISMATCH", "HASH_MISMATCH", "ZIP_INVALID", "ZIP_RULE", "PRINTER_DISCONNECTED", "UPLOAD_FAILED", null ],
+            "description": "실패 이유 (Failed일 때만, 나머지는 null)"
+          },
+          "message": { "type": [ "string", "null" ], "description": "실패 설명 (Failed일 때만, 나머지는 null)" }
+        }
+      },
+      "ApiResponse_Null": {
+        "type": "object",
+        "title": "ApiResponse[None]",
+        "required": [ "success" ],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "data": { "type": "null" },
+          "message": { "type": [ "string", "null" ] }
+        }
+      }
+    }
+  }
+}
